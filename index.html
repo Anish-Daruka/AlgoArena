@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Duel Problem Picker</title>
+<title>AlgoArena Match</title>
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --line: #30363d; --text: #e6edf3;
@@ -12,11 +12,14 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  .wrap { max-width: 640px; margin: 0 auto; padding: 28px 16px; }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 28px 16px 60px; }
   h1 { margin: 0 0 4px; font-size: 28px; }
   h1 span { color: var(--accent); }
-  .sub { color: var(--muted); margin: 0 0 24px; }
+  h2 { margin: 0 0 6px; font-size: 20px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .sub a { color: var(--accent); }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .hide { display: none; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
   label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
   input, select { width: 100%; padding: 10px 12px; font-size: 16px; border-radius: 8px;
@@ -24,43 +27,80 @@
   .check { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; margin: 4px 0 16px; }
   .check input { width: auto; }
   .btns { display: flex; gap: 10px; }
-  button { flex: 1; padding: 12px; font-size: 17px; font-weight: 700; border-radius: 8px; cursor: pointer;
+  button { flex: 1; padding: 12px; font-size: 16px; font-weight: 700; border-radius: 8px; cursor: pointer;
     border: 1px solid var(--accent); background: var(--accent); color: #111; }
   button.ghost { background: transparent; color: var(--text); border-color: var(--line); font-weight: 500; }
+  button.sm { padding: 8px; font-size: 14px; }
   button:disabled { opacity: .4; cursor: not-allowed; }
-  #out { margin-top: 20px; }
-  .result { border: 1px solid var(--ok); border-radius: 12px; padding: 18px; background: rgba(63,185,80,.08); }
-  .result a { color: var(--ok); font-size: 22px; font-weight: 700; text-decoration: none; word-break: break-word; }
-  .meta { color: var(--muted); font-size: 14px; margin-top: 8px; }
+  .erow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .tg { grid-column: 1 / -1; font-weight: 600; }
+  .note { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+  .error { color: var(--err); margin: 10px 0; min-height: 1em; }
   .msg { color: var(--muted); }
-  .error { color: var(--err); }
-  @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
+  .duel { border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-top: 14px; }
+  .dh { font-size: 15px; }
+  .vs { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; text-align: center; margin: 12px 0; }
+  .vs small, .vs b, .vs span { display: block; }
+  .vs small, .vs span { color: var(--muted); font-size: 13px; }
+  .vs b { font-size: 18px; word-break: break-word; }
+  .x { color: var(--muted); }
+  .meta { color: var(--muted); font-size: 14px; margin: 6px 0; }
+  .meta b { color: var(--text); }
+  .result { border: 1px solid var(--ok); border-radius: 10px; padding: 12px; background: rgba(63,185,80,.08); margin: 10px 0; }
+  .result a { color: var(--ok); font-size: 19px; font-weight: 700; text-decoration: none; word-break: break-word; }
+  @media (max-width: 480px) { .row, .erow { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Algo<span>Arena</span> Duel Picker</h1>
-  <p class="sub">Finds a Codeforces problem with the given tag and rating that <b>neither player has ever submitted to</b>.</p>
+  <h1>Algo<span>Arena</span> Match</h1>
+  <p class="sub">One match, one device. Each team enters its picks in secret, then the problems are chosen. <a href="./">Single duel picker</a></p>
 
-  <div class="card">
+  <!-- Step 1: set up the match -->
+  <div class="card" id="s0">
+    <h2>Set up the match</h2>
+    <p class="note">Choose the four topic cards. Teams enter their picks next.</p>
     <div class="row">
-      <div><label for="h1">Player 1 handle</label><input id="h1" placeholder="e.g. tourist" autocomplete="off"></div>
-      <div><label for="h2">Player 2 handle</label><input id="h2" placeholder="e.g. jiangly" autocomplete="off"></div>
+      <div><label for="t1">Team 1 name</label><input id="t1" value="Team 1" autocomplete="off"></div>
+      <div><label for="t2">Team 2 name</label><input id="t2" value="Team 2" autocomplete="off"></div>
     </div>
-    <div class="row">
-      <div><label for="tag">Tag</label><select id="tag"></select></div>
-      <div><label for="rating">Rating</label><select id="rating"></select></div>
-    </div>
+    <div class="row" id="tagRows"></div>
     <div class="row">
       <div><label for="minC">Min contest ID</label><input id="minC" type="number" value="1000"></div>
       <div><label for="maxC">Max contest ID</label><input id="maxC" type="number" value="1900"></div>
     </div>
     <label class="check"><input type="checkbox" id="nointer" checked> Skip interactive problems</label>
+    <div class="error" id="e0"></div>
+    <div class="btns"><button id="start">Start match</button></div>
+  </div>
+
+  <!-- Step 2: a team enters members and bids -->
+  <div class="card hide" id="s1">
+    <h2 id="eTitle"></h2>
+    <p class="note">Only this team should look at the screen. Use a different member for each card. Bids are whole numbers from 800 to 3500.</p>
+    <div id="eRows"></div>
+    <div class="error" id="eErr"></div>
     <div class="btns">
-      <button id="go">Pick problem</button>
-      <button id="again" class="ghost" disabled>Reroll</button>
+      <button id="lock">Lock in</button>
     </div>
-    <div id="out"></div>
+  </div>
+
+  <!-- Step 3: pass the device -->
+  <div class="card hide" id="s2">
+    <h2><span id="passA"></span> is locked in</h2>
+    <p class="note">Pass the device to <b id="passB"></b>. Team 1's picks are hidden.</p>
+    <div class="btns"><button id="next">I am on the other team</button></div>
+  </div>
+
+  <!-- Step 4: results -->
+  <div class="card hide" id="s3">
+    <h2>Match picks</h2>
+    <div id="stat" class="msg"></div>
+    <div id="res"></div>
+    <div class="btns" style="margin-top:16px">
+      <button class="ghost" id="retry" hidden>Try again</button>
+      <button class="ghost" id="again">New match</button>
+    </div>
   </div>
 </div>
 
@@ -73,74 +113,228 @@ const TAGS = ["implementation","math","greedy","dp","data structures","brute for
   "2-sat","ternary search","chinese remainder theorem","schedules"];
 const API = "https://codeforces.com/api/";
 const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const key = p => p.contestId + "/" + p.index;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const view = id => ["s0", "s1", "s2", "s3"].forEach(s => $(s).classList.toggle("hide", s !== id));
 
-TAGS.forEach(t => $("tag").add(new Option(t, t)));
-for (let r = 800; r <= 3500; r += 100) $("rating").add(new Option(r, r));
-$("tag").value = "dp"; $("rating").value = "1400";
+const S = { cur: 0, names: ["", ""], tags: [], teams: [[], []], minC: 0, maxC: Infinity, noInter: true };
+const probCache = {}, seenCache = {}, used = new Set();
+let cards = [], last = 0;
 
-const problemCache = {};   // tag -> problems
-let pool = [];
+// ---- Codeforces API (about 1 call per 2 seconds) ----
+class CFError extends Error { constructor(kind, msg) { super(msg); this.kind = kind; } }
 
-async function api(method) {
-  const res = await fetch(API + method);
-  const data = await res.json();
-  if (data.status !== "OK") throw new Error(data.comment || "Codeforces API error");
-  return data.result;
+async function apiRaw(method) {
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const wait = last + 2100 - Date.now();
+    if (wait > 0) await sleep(wait);
+    last = Date.now();
+    try {
+      const res = await fetch(API + method);
+      const data = await res.json();
+      if (data.status === "OK") return data.result;
+      const msg = data.comment || "Codeforces API error";
+      if (/limit exceeded/i.test(msg)) { lastErr = new CFError("net", msg); await sleep(3000); continue; }
+      throw new CFError("api", msg);
+    } catch (e) {
+      if (e instanceof CFError && e.kind === "api") throw e;
+      lastErr = e instanceof CFError ? e : new CFError("net", String(e.message || e));
+      await sleep(2000 * (attempt + 1));
+    }
+  }
+  throw lastErr;
+}
+
+let chain = Promise.resolve();
+const api = method => { const p = chain.then(() => apiRaw(method)); chain = p.catch(() => {}); return p; };
+
+function explain(e) {
+  if (e.kind === "api") {
+    const m = /User with handle (\S+) not found/i.exec(e.message);
+    if (m) return "The handle <b>" + esc(m[1]) + "</b> was not found on Codeforces. Check the spelling, fix it with a new match, or ask the player for the exact handle.";
+    return "Codeforces replied: " + esc(e.message) + ".";
+  }
+  return "Can't reach Codeforces right now. It tried 3 times.<br>" +
+    "1. Check the internet connection.<br>" +
+    "2. Open <a href=\"https://codeforces.com/api/user.info?handles=tourist\" target=\"_blank\" rel=\"noopener\">this test link</a>. " +
+    "If it does not load, Codeforces is down or blocked on this network. Try a mobile hotspot.<br>" +
+    "3. If it loads, wait 10 seconds and press <b>Try again</b>. Your entries are kept.";
 }
 async function problems(tag) {
-  if (!problemCache[tag]) problemCache[tag] = (await api("problemset.problems?tags=" + encodeURIComponent(tag))).problems;
-  return problemCache[tag];
+  if (!probCache[tag]) probCache[tag] = (await api("problemset.problems?tags=" + encodeURIComponent(tag))).problems;
+  return probCache[tag];
 }
-async function seenBy(handle) {
-  const subs = await api("user.status?handle=" + encodeURIComponent(handle));
-  return new Set(subs.map(s => s.problem.contestId + "/" + s.problem.index));
-}
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-function show(html, cls) { $("out").innerHTML = `<div class="${cls || "msg"}">${html}</div>`; }
-function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
-
-function showPick() {
-  if (!pool.length) { show("No more unseen problems at this rating. Try ±100 or widen the contest range.", "error"); $("again").disabled = true; return; }
-  const i = Math.floor(Math.random() * pool.length);
-  const p = pool.splice(i, 1)[0];
-  const url = `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`;
-  $("out").innerHTML = `<div class="result">
-      <a href="${url}" target="_blank" rel="noopener">${esc(p.contestId + p.index)} · ${esc(p.name)}</a>
-      <div class="meta">${esc(url)}</div>
-      <div class="meta">Rating ${p.rating} · ${pool.length} other unseen candidates left</div>
-    </div>`;
-  $("again").disabled = !pool.length;
-}
-
-$("go").onclick = async () => {
-  const h1 = $("h1").value.trim(), h2 = $("h2").value.trim();
-  const tag = $("tag").value, rating = +$("rating").value;
-  const minC = +$("minC").value || 0, maxC = +$("maxC").value || Infinity;
-  if (!h1 || !h2) { show("Enter both handles.", "error"); return; }
-  $("go").disabled = true; $("again").disabled = true;
-  try {
-    show("Fetching problems…");
-    const probs = await problems(tag);
-    show("Checking " + esc(h1) + "'s submissions…");
-    const s1 = await seenBy(h1);
-    await sleep(2100);            // Codeforces allows ~1 API call per 2 seconds
-    show("Checking " + esc(h2) + "'s submissions…");
-    const s2 = await seenBy(h2);
-    pool = probs.filter(p =>
-      p.rating === rating &&
-      p.contestId >= minC && p.contestId <= maxC &&
-      (!$("nointer").checked || !p.tags.includes("interactive")) &&
-      !s1.has(p.contestId + "/" + p.index) &&
-      !s2.has(p.contestId + "/" + p.index));
-    showPick();
-  } catch (e) {
-    show("Error: " + esc(e.message) + ". Check the handles and your internet connection, then try again.", "error");
-  } finally {
-    $("go").disabled = false;
+async function seen(handle) {
+  const k = handle.toLowerCase();
+  if (!seenCache[k]) {
+    const subs = await api("user.status?handle=" + encodeURIComponent(handle));
+    seenCache[k] = new Set(subs.map(s => key(s.problem)));
   }
+  return seenCache[k];
+}
+
+// ---- Step 1: setup ----
+const defaults = ["dp", "graphs", "math", "greedy"];
+for (let i = 0; i < 4; i++) {
+  const d = document.createElement("div");
+  d.innerHTML = `<label for="tag${i}">Card ${i + 1} topic</label><select id="tag${i}"></select>`;
+  $("tagRows").appendChild(d);
+  TAGS.forEach(t => $("tag" + i).add(new Option(t, t)));
+  $("tag" + i).value = defaults[i];
+}
+$("start").onclick = () => {
+  const tags = [0, 1, 2, 3].map(i => $("tag" + i).value);
+  if (new Set(tags).size < 4) { $("e0").textContent = "Pick four different topics."; return; }
+  $("e0").textContent = "";
+  S.names = [$("t1").value.trim() || "Team 1", $("t2").value.trim() || "Team 2"];
+  S.tags = tags;
+  S.minC = +$("minC").value || 0;
+  S.maxC = +$("maxC").value || Infinity;
+  S.noInter = $("nointer").checked;
+  openEntry(0);
 };
-$("again").onclick = showPick;
+
+// ---- Step 2: team entry ----
+function openEntry(t) {
+  S.cur = t;
+  $("eTitle").textContent = S.names[t] + ": enter your picks";
+  $("eRows").innerHTML = S.tags.map((tag, i) => `<div class="erow">
+      <div class="tg">Card ${i + 1}: ${esc(tag)}</div>
+      <input class="mem" type="text" autocomplete="off" placeholder="Member's Codeforces handle">
+      <input class="bid" type="text" autocomplete="off" inputmode="numeric" placeholder="Bid (800 to 3500)">
+    </div>`).join("");
+  $("eErr").textContent = "";
+  view("s1");
+}
+$("lock").onclick = () => {
+  const err = m => { $("eErr").textContent = m; };
+  const mems = [...document.querySelectorAll(".mem")].map(e => e.value.trim());
+  const bids = [...document.querySelectorAll(".bid")].map(e => e.value.trim());
+  if (mems.some(m => !m)) return err("Enter a member handle for every card.");
+  const low = mems.map(m => m.toLowerCase());
+  if (new Set(low).size < 4) return err("Each member can take only one card.");
+  if (bids.some(b => !/^\d+$/.test(b) || +b < 800 || +b > 3500)) return err("Bids must be whole numbers from 800 to 3500.");
+  if (S.cur === 1) {
+    const other = S.teams[0].map(x => x.h.toLowerCase());
+    const dup = mems.find(m => other.includes(m.toLowerCase()));
+    if (dup) return err(dup + " is already on the other team.");
+  }
+  S.teams[S.cur] = mems.map((h, i) => ({ h, bid: +bids[i] }));
+  document.querySelectorAll(".mem,.bid").forEach(e => e.value = "");
+  if (S.cur === 0) {
+    $("passA").textContent = S.names[0];
+    $("passB").textContent = S.names[1];
+    view("s2");
+  } else run();
+};
+$("next").onclick = () => openEntry(1);
+
+// ---- Step 4: choose problems ----
+const stat = (html, cls) => { $("stat").className = cls || "msg"; $("stat").innerHTML = html; };
+
+async function run() {
+  view("s3");
+  $("retry").hidden = true;
+  if (!cards.length) { build(); render(); }          // show tags, members, bids and ratings right away
+  if (!S.checked) {
+    try {
+      stat("Checking that all 8 handles exist…");
+      await api("user.info?handles=" + [...S.teams[0], ...S.teams[1]].map(p => encodeURIComponent(p.h)).join(";"));
+      S.checked = true;
+    } catch (e) {
+      if (e.kind === "api") { stat(explain(e), "error"); return; }   // wrong handle: stop here
+      // network trouble: carry on, every card can also be fetched on its own
+    }
+  }
+  for (let i = 0; i < cards.length; i++) await fetchOne(i);
+}
+
+async function fetchOne(i) {
+  const c = cards[i];
+  if (c.ready || c.busy) return;
+  c.busy = true; c.err = ""; render();
+  try {
+    stat("Card " + (i + 1) + ": loading " + esc(c.tag) + " problems…");
+    await problems(c.tag);
+    stat("Card " + (i + 1) + ": checking " + esc(c.a.h) + "'s submissions…");
+    await seen(c.a.h);
+    stat("Card " + (i + 1) + ": checking " + esc(c.b.h) + "'s submissions…");
+    await seen(c.b.h);
+    choose(c);
+    c.ready = true;
+  } catch (e) {
+    c.err = explain(e);
+  }
+  c.busy = false;
+  const failed = cards.filter(x => x.err).length;
+  stat(failed ? failed + " card(s) failed. Press <b>Fetch</b> on each one to try again." : "", failed ? "error" : "msg");
+  render();
+}
+
+function build() {
+  used.clear();
+  cards = S.tags.map((tag, i) => {
+    const a = S.teams[0][i], b = S.teams[1][i];
+    const R = Math.ceil(((a.bid + b.bid) / 2 - 50) / 100) * 100;   // nearest 100, exact halves round down
+    return { tag, a, b, R, shift: 0, pick: null, note: "", ready: false };
+  });
+}
+function cands(c) {
+  const r = c.R + c.shift, s1 = seenCache[c.a.h.toLowerCase()], s2 = seenCache[c.b.h.toLowerCase()];
+  return probCache[c.tag].filter(p => p.rating === r && p.contestId >= S.minC && p.contestId <= S.maxC &&
+    (!S.noInter || !p.tags.includes("interactive")) &&
+    !s1.has(key(p)) && !s2.has(key(p)) && !used.has(key(p)));
+}
+function choose(c) {
+  const pool = cands(c);
+  if (!pool.length) return false;
+  c.pick = pool[Math.floor(Math.random() * pool.length)];
+  used.add(key(c.pick));
+  return true;
+}
+function reroll(i) {
+  const c = cards[i];
+  if (!c.ready) return;
+  c.note = choose(c) ? "" : "No other unseen problem at this rating.";
+  render();
+}
+function shift(i, d) {
+  const c = cards[i];
+  if (!c.ready) return;
+  if (c.pick) used.delete(key(c.pick));
+  c.pick = null; c.shift += d; c.note = "";
+  choose(c);
+  render();
+}
+function render() {
+  $("res").innerHTML = cards.map((c, i) => {
+    const p = c.pick, r = c.R + c.shift;
+    const url = p ? `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}` : "";
+    return `<div class="duel">
+      <div class="dh">Card ${i + 1}: <b>${esc(c.tag)}</b></div>
+      <div class="vs">
+        <div><small>${esc(S.names[0])}</small><b>${esc(c.a.h)}</b><span>bid ${c.a.bid}</span></div>
+        <div class="x">vs</div>
+        <div><small>${esc(S.names[1])}</small><b>${esc(c.b.h)}</b><span>bid ${c.b.bid}</span></div>
+      </div>
+      <div class="meta">Final rating: <b>${c.R}</b>${c.shift ? ` (organizer override: problem rated ${r})` : ""}</div>
+      ${!c.ready ? (c.err ? `<div class="error">${c.err}</div><div class="btns"><button class="sm" onclick="fetchOne(${i})">Fetch</button></div>` : `<div class="meta">${c.busy ? "Finding a problem…" : "Waiting…"}</div><div class="btns"><button class="ghost sm" onclick="fetchOne(${i})"${c.busy ? " disabled" : ""}>Fetch now</button></div>`) : p ? `<div class="result"><a href="${url}" target="_blank" rel="noopener">${esc(p.contestId + p.index)}: ${esc(p.name)}</a>
+        <div class="meta">${esc(url)}</div>
+        <div class="meta">${cands(c).length} other unseen candidates left</div></div>`
+        : `<div class="error">No unseen problem at rating ${r}. Try another rating or widen the contest range.</div>`}
+      ${c.note ? `<div class="meta">${esc(c.note)}</div>` : ""}
+      <div class="btns" style="${c.ready ? "" : "display:none"}">
+        <button class="ghost sm" onclick="reroll(${i})">Reroll</button>
+        <button class="ghost sm" onclick="shift(${i},-100)">−100</button>
+        <button class="ghost sm" onclick="shift(${i},100)">+100</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+$("retry").onclick = run;
+$("again").onclick = () => location.reload();
 </script>
 </body>
 </html>
