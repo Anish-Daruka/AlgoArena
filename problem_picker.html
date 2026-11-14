@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duel Problem Picker</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --line: #30363d; --text: #e6edf3;
+    --muted: #8b949e; --accent: #f0b429; --ok: #3fb950; --err: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 28px 16px; }
+  h1 { margin: 0 0 4px; font-size: 28px; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .sub a { color: var(--accent); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  input, select { width: 100%; padding: 10px 12px; font-size: 16px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  .check { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; margin: 4px 0 16px; }
+  .check input { width: auto; }
+  .btns { display: flex; gap: 10px; }
+  button { flex: 1; padding: 12px; font-size: 17px; font-weight: 700; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: #111; }
+  button.ghost { background: transparent; color: var(--text); border-color: var(--line); font-weight: 500; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  #out { margin-top: 20px; }
+  .result { border: 1px solid var(--ok); border-radius: 12px; padding: 18px; background: rgba(63,185,80,.08); }
+  .result a { color: var(--ok); font-size: 22px; font-weight: 700; text-decoration: none; word-break: break-word; }
+  .meta { color: var(--muted); font-size: 14px; margin-top: 8px; }
+  .msg { color: var(--muted); }
+  .error { color: var(--err); }
+  @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Algo<span>Arena</span> Duel Picker</h1>
+  <p class="sub">Finds a Codeforces problem with the given tag and rating that <b>neither player has ever submitted to</b>. <a href="index.html">Full match page</a></p>
+
+  <div class="card">
+    <div class="row">
+      <div><label for="h1">Player 1 handle</label><input id="h1" placeholder="e.g. tourist" autocomplete="off"></div>
+      <div><label for="h2">Player 2 handle</label><input id="h2" placeholder="e.g. jiangly" autocomplete="off"></div>
+    </div>
+    <div class="row">
+      <div><label for="tag">Tag</label><select id="tag"></select></div>
+      <div><label for="rating">Rating</label><select id="rating"></select></div>
+    </div>
+    <div class="row">
+      <div><label for="minC">Min contest ID</label><input id="minC" type="number" value="1000"></div>
+      <div><label for="maxC">Max contest ID</label><input id="maxC" type="number" value="1900"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="nointer" checked> Skip interactive problems</label>
+    <div class="btns">
+      <button id="go">Pick problem</button>
+      <button id="again" class="ghost" disabled>Reroll</button>
+    </div>
+    <div id="out"></div>
+  </div>
+</div>
+
+<script>
+const TAGS = ["implementation","math","greedy","dp","data structures","brute force",
+  "constructive algorithms","graphs","sortings","binary search","dfs and similar","trees",
+  "strings","number theory","combinatorics","two pointers","bitmasks","geometry","dsu",
+  "shortest paths","probabilities","divide and conquer","hashing","games","matrices",
+  "graph matchings","flows","fft","expression parsing","meet-in-the-middle","string suffix structures",
+  "2-sat","ternary search","chinese remainder theorem","schedules"];
+const API = "https://codeforces.com/api/";
+const $ = id => document.getElementById(id);
+
+TAGS.forEach(t => $("tag").add(new Option(t, t)));
+for (let r = 800; r <= 3500; r += 100) $("rating").add(new Option(r, r));
+$("tag").value = "dp"; $("rating").value = "1400";
+
+const problemCache = {};   // tag -> problems
+let pool = [];
+
+async function api(method) {
+  const res = await fetch(API + method);
+  const data = await res.json();
+  if (data.status !== "OK") throw new Error(data.comment || "Codeforces API error");
+  return data.result;
+}
+async function problems(tag) {
+  if (!problemCache[tag]) problemCache[tag] = (await api("problemset.problems?tags=" + encodeURIComponent(tag))).problems;
+  return problemCache[tag];
+}
+async function seenBy(handle) {
+  const subs = await api("user.status?handle=" + encodeURIComponent(handle));
+  return new Set(subs.map(s => s.problem.contestId + "/" + s.problem.index));
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function show(html, cls) { $("out").innerHTML = `<div class="${cls || "msg"}">${html}</div>`; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function showPick() {
+  if (!pool.length) { show("No more unseen problems at this rating. Try ±100 or widen the contest range.", "error"); $("again").disabled = true; return; }
+  const i = Math.floor(Math.random() * pool.length);
+  const p = pool.splice(i, 1)[0];
+  const url = `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`;
+  $("out").innerHTML = `<div class="result">
+      <a href="${url}" target="_blank" rel="noopener">${esc(p.contestId + p.index)} · ${esc(p.name)}</a>
+      <div class="meta">${esc(url)}</div>
+      <div class="meta">Rating ${p.rating} · ${pool.length} other unseen candidates left</div>
+    </div>`;
+  $("again").disabled = !pool.length;
+}
+
+$("go").onclick = async () => {
+  const h1 = $("h1").value.trim(), h2 = $("h2").value.trim();
+  const tag = $("tag").value, rating = +$("rating").value;
+  const minC = +$("minC").value || 0, maxC = +$("maxC").value || Infinity;
+  if (!h1 || !h2) { show("Enter both handles.", "error"); return; }
+  $("go").disabled = true; $("again").disabled = true;
+  try {
+    show("Fetching problems…");
+    const probs = await problems(tag);
+    show("Checking " + esc(h1) + "'s submissions…");
+    const s1 = await seenBy(h1);
+    await sleep(2100);            // Codeforces allows ~1 API call per 2 seconds
+    show("Checking " + esc(h2) + "'s submissions…");
+    const s2 = await seenBy(h2);
+    pool = probs.filter(p =>
+      p.rating === rating &&
+      p.contestId >= minC && p.contestId <= maxC &&
+      (!$("nointer").checked || !p.tags.includes("interactive")) &&
+      !s1.has(p.contestId + "/" + p.index) &&
+      !s2.has(p.contestId + "/" + p.index));
+    showPick();
+  } catch (e) {
+    show("Error: " + esc(e.message) + ". Check the handles and your internet connection, then try again.", "error");
+  } finally {
+    $("go").disabled = false;
+  }
+};
+$("again").onclick = showPick;
+</script>
+</body>
+</html>
